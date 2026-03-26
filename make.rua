@@ -1,0 +1,27 @@
+#!/usr/bin/env rua
+
+local copyIfDiffer = |src, dst|do
+	local data = assert(src:read())
+	if not dst:exists()
+	or data ~= assert(dst:read())
+	then
+		print('updating: '..src..' -> '..dst)
+		dst:getdir():mkdir(true)
+		assert(dst:write(data))
+	else
+		print('up to date: '..dst)
+	end
+end
+
+-- 1) copy assets_patch/ files over LuaJIT/app/src/main/assets/ but only if it differs
+local fromdir = path'assets_patch'
+local todir = path'LuaJIT/app/src/main/assets'
+for srcf in fromdir:rdir() do
+	local dstf = path((srcf.path:gsub(
+		'^'..fromdir.path:patescape()..'/',
+		todir.path:patescape()..'/')))
+	copyIfDiffer(srcf, dstf)
+end
+
+-- 2) just forward the make command to LuaJIT/Makefile
+os.exec('cd LuaJIT && ./make.rua', ...)
