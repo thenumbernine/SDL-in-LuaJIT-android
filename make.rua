@@ -26,5 +26,18 @@ if fromdir:exists() then
 	end
 end
 
+copyIfDiffer(path'nogradle/AndroidManifest.xml', path'LuaJIT/nogradle/AndroidManifest.xml')
+
+-- update the icon
+copyIfDiffer(
+	path'SDL/VisualC-GDK/logos/Logo480x480.png',
+	'icon.png'
+)
+
+copyIfDiffer(
+	path'SDL/android-project/app/src/main/java',
+	path'app/src/main/java'
+)
+
 -- 2) just forward the make command to LuaJIT/Makefile
 os.exec('cd LuaJIT && ./make.rua', ...)

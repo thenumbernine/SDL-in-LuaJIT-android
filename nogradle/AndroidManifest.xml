@@ -125,10 +125,6 @@ wtf stupid flag is this?
 			android:label="@string/app_name"
 			android:launchMode="singleInstance"
 			android:preferMinimalPostProcessing="true" >
-			<intent-filter>
-				<action android:name="android.intent.action.MAIN" />
-				<category android:name="android.intent.category.LAUNCHER" />
-			</intent-filter>
 			<!-- Let Android know that we can handle some USB devices and should receive this event -->
 			<intent-filter>
 				<action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
