@@ -15,7 +15,7 @@ I'm calling it as-is without subclassing/modification of SDLActivity, so args is
 JNIEXPORT int SDL_main(int argc, char** argv) {
 	if (SDL_main_callback) {
 		return SDL_main_callback();
-	} else {
-		fprintf(stderr, "SDL_main_callback is NULL!");
 	}
+	fprintf(stderr, "SDL_main_callback is NULL!");
+	return -1;
 }

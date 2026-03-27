@@ -1,46 +1,60 @@
 #!/usr/bin/env rua
 
-local copyIfDiffer = |src, dst|do
-	local data = assert(src:read())
-	if not dst:exists()
-	or data ~= assert(dst:read())
-	then
-		print('updating: '..src..' -> '..dst)
-		dst:getdir():mkdir(true)
-		assert(dst:write(data))
-	else
-		print('up to date: '..dst)
-	end
+-- TODO this is only necessary for temp-file generation (which will always have bad timestamps)
+-- otherwise old fashion timestamps are fine
+local Targets = require 'make.targets'
+local targets = Targets() --{verbose=true}
+
+local exec = |...| assert(os.exec(...))	-- assert or nah?
+local cp = |...| exec('cp', ...)
+
+local copyRule = |srcf, dstf|do
+	targets:add{
+		dsts = {dstf},
+		srcs = {srcf},
+		rule = |r|do
+			r.dsts[1]:getdir():mkdir(true)
+			cp(r.srcs[1], r.dsts[1])
+		end,
+	}
 end
 
-local updateFolder = |fromdir, todir|do
+local copyFolderRule = |fromdir, todir|do
 	if fromdir:exists() then
 		for srcf in fromdir:rdir() do
-			local dstf = path((srcf.path:gsub(
-				'^'..fromdir.path:patescape()..'/',
-				todir.path:patescape()..'/')))
-			copyIfDiffer(srcf, dstf)
+			local dstf = path((
+				srcf.path:gsub(
+					'^'..fromdir.path:patescape()..'/',
+					todir.path:patescape()..'/')
+			))
+			copyRule(srcf, dstf)
 		end
 	end
 end
 
-updateFolder(
+copyFolderRule(
 	path'app',
 	path'LuaJIT/app'
 )
 
-copyIfDiffer(path'nogradle/AndroidManifest.xml', path'LuaJIT/nogradle/AndroidManifest.xml')
+copyRule(
+	path'nogradle/AndroidManifest.xml',
+	path'LuaJIT/nogradle/AndroidManifest.xml'
+)
 
 -- update the icon
-copyIfDiffer(
+copyRule(
 	path'SDL/VisualC-GDK/logos/Logo480x480.png',
 	path'icon.png'
 )
 
-updateFolder(
+copyFolderRule(
 	path'SDL/android-project/app/src/main/java',
 	path'app/src/main/java'
 )
 
+--- make
+targets:runAll()
+
 -- 2) just forward the make command to LuaJIT/Makefile
-os.exec('cd LuaJIT && ./make.rua', ...)
+exec('cd LuaJIT && ./make.rua', ...)
