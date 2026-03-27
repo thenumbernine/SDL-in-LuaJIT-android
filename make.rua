@@ -13,8 +13,6 @@ local copyIfDiffer = |src, dst|do
 	end
 end
 
--- 1) copy assets_patch/ files over LuaJIT/app/src/main/assets/ but only if it differs
--- TODO copy the whole cwd, and just skip the LuaJIT dest dir
 local updateFolder = |fromdir, todir|do
 	if fromdir:exists() then
 		for srcf in fromdir:rdir() do
