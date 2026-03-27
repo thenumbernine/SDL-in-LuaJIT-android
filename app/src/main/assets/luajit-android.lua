@@ -235,6 +235,22 @@ end
 --]=======]
 -- [=======[ SDL
 do	
+	-- ok so we have this libmain which is the project C contribution
+	-- it's usually got the lua call code
+	-- but I also for this project squeezed in the SDL_main function as well, which is just a trampoline back to luajit world:
+	-- however it's gonna run on a separate thread
+	-- so it's gotta run on a separate Lua state ...
+	local LiteThread = require 'thread.lite'
+	_G.sdlMainThread = LiteThread{
+		threadFuncType = 'int(*)()',
+		code = [[
+print 'here from within the SDL_main thread'
+]]
+	}
+	ffi.cdef[[int (*SDL_main_callback)();]]
+	local main = ffi.load'main'
+	main.SDL_main_callback = ffi.cast('int(*)()', sdlMainThread.funcptr)
+
 	local sdlMenu = getNextMenu()
 	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
 	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
