@@ -56,5 +56,52 @@ copyFolderRule(
 --- make
 targets:runAll()
 
+-- while we're here, also, make SDL ...
+-- ... with cmake I guess ?
+-- these are also in LuaJIT/make.rua, so idk I'd put them in one place but I want the # files small ...
+-- idk, this could easily become another step in lua-make ...
+-- Speaking of which, why aren't I putting the SDL-android .jar and .so build in one place, the luajit-android .so in one place,
+--  and the individual apps just link into it, like the old days before the retards at Google ruined everything, and github copying the same file 1000x over became trendy?
+-- That's what my lua-make project is set up for anyways.  That's the old MSVC style project dir structure after all.
+
+local dirsort = |p|
+	table.wrapfor(p:dir())
+	:mapi(|vk| vk[1])
+	:sort(|a,b| a.path < b.path)	-- is < in Path already?
+
+local latest = |p| p/dirsort(p):last()
+
+home = path(os.home())
+
+androidStudioRoot = home/'android-studio'
+androidSdkRoot = home/'Android/Sdk'
+buildToolsDir = latest(androidSdkRoot/'build-tools')
+androidSdkPlatformsDir = androidSdkRoot/'platforms'
+androidSdkPlatform = dirsort(androidSdkPlatformsDir):last()
+androidJar = androidSdkPlatformsDir/androidSdkPlatform/'android.jar'
+androidNdkRoot = androidSdkRoot/'ndk'
+androidNdkBin = latest(androidNdkRoot)/'toolchains/llvm/prebuilt/linux-x86_64/bin'
+libArch = 'armeabi-v7a'	-- arch folder in lib/
+
+--[[
+libSDL_so = path'LuaJIT/lib/libSDL3.so'
+if not libSDL_so:exists() then
+	local sdlBuildDir = path'SDL/build'
+	sdlBuildDir :mkdir()
+	exec('cd', sdlBuildDir,
+		'&&',
+		'cmake ..',
+		'-DCMAKE_SYSTEM_NAME="Android"',
+		'-DCMAKE_ANDROID_NDK='..androidSdkRoot:escape(),
+		'-DANDROID_PLATFORM='..androidSdkPlatform,
+		'-DANDROID_ABI="'..libArch..'"',
+		'-DANDROID_STL=c++_shared'
+		--'-DSDL_TEST_LIBRARY=OFF',
+		--'-DSDL_TESTS=OFF',
+	)
+	error'done'
+end
+--]]
+
 -- 2) just forward the make command to LuaJIT/Makefile
 exec('cd LuaJIT && ./make.rua', ...)
