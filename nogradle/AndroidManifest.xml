@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="io.github.thenumbernine.SDLLuaJIT"
+    android:versionCode="1"
+    android:versionName="1.0"
+>
+<!--xmlns:tools="http://schemas.android.com/tools"-->
+    <uses-sdk
+        android:minSdkVersion="24"
+        android:targetSdkVersion="36" />
+
+	<!-- Chris: this is copied from the SDL sample -->
+
+	<!-- OpenGL ES 2.0 -->
+	<!-- uses-feature android:glEsVersion="0x00020000" /-->
+	<!-- Chris: would this be OpenGLES 3.0 ? -->
+	<!-- uses-feature android:glEsVersion="0x00030000" /-->
+	<!-- OpenGL ES 3.2 -->
+	<uses-feature android:glEsVersion="0x00030002" android:required="false" />
+
+	<!-- Touchscreen support -->
+	<uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+	<!-- Game controller support -->
+	<uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+	<uses-feature android:name="android.hardware.gamepad" android:required="false" />
+	<uses-feature android:name="android.hardware.usb.host" android:required="false" />
+
+	<!-- External mouse input events -->
+	<uses-feature android:name="android.hardware.type.pc" android:required="false" />
+
+	<!-- Audio recording support -->
+	<!-- if you want to record audio, uncomment this. -->
+	<uses-permission android:name="android.permission.RECORD_AUDIO" />
+	<uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+	<!-- Camera support -->
+	<!-- if you want to record video, uncomment this. -->
+	<uses-permission android:name="android.permission.CAMERA" />
+	<uses-feature android:name="android.hardware.camera" />
+
+	<!-- Allow downloading to the external storage on Android 5.1 and older -->
+	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="22" />
+	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+	<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
+	<!-- Allow access to Bluetooth devices -->
+	<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+	<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+	<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+	<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+	<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+	<!-- Allow access to the vibrator -->
+	<uses-permission android:name="android.permission.VIBRATE" />
+
+	<!-- Allow access to Internet -->
+	<!-- if you want to connect to the network or internet, uncomment this. -->
+	<uses-permission android:name="android.permission.INTERNET" />
+
+    <permission android:name="io.github.thenumbernine.SDLLuaJIT.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" android:protectionLevel="signature" />
+    <uses-permission android:name="io.github.thenumbernine.SDLLuaJIT.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+	<!--
+ Create a Java class extending SDLActivity and place it in a
+	 directory under app/src/main/java matching the package, e.g. app/src/main/java/com/gamemaker/game/MyGame.java
+
+	 then replace "SDLActivity" with the name of your class (e.g. "MyGame")
+	 in the XML below.
+
+	 An example Java class can be found in README-android.md
+
+Wait so turning off android;debuggable just disables access to /data/data/package?
+Here I was hoping it would stop the multiple wasted cycles on debug logging every single frame when running realtime hardware acceleration ... but nope, android is still bogging the system down with nonsense.
+wtf stupid flag is this?
+	-->
+	<application
+		android:allowBackup="true"
+        android:debuggable="true"
+        android:extractNativeLibs="false"
+		android:hardwareAccelerated="true"
+		android:icon="@mipmap/ic_launcher"
+		android:roundIcon="@mipmap/ic_launcher_round"
+		android:label="@string/app_name">
+		<!--android:theme="@style/AppTheme"-->
+        <!--android:appComponentFactory="androidx.core.app.CoreComponentFactory"-->
+
+		<!--
+		Example of setting SDL hints from AndroidManifest.xml:
+		<meta-data android:name="SDL_ENV.SDL_ANDROID_TRAP_BACK_BUTTON" android:value="0"/>
+		 -->
+
+		<activity
+			android:name="io.github.thenumbernine.SDLLuaJIT.Activity"
+			android:alwaysRetainTaskState="true"
+			android:configChanges="layoutDirection|locale|grammaticalGender|fontScale|fontWeightAdjustment|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+			android:exported="true"
+			android:label="@string/app_name"
+			android:launchMode="singleInstance"
+			android:preferMinimalPostProcessing="true" >
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+			<!-- Let Android know that we can handle some USB devices and should receive this event -->
+			<intent-filter>
+				<action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+			</intent-filter>
+			<!-- Drop file event -->
+			<!--
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<data android:mimeType="*/*" />
+			</intent-filter>
+			-->
+		</activity>
+
+		<!-- also allow SDLActivity -->
+		<activity
+			android:name="org.libsdl.app.SDLActivity"
+			android:alwaysRetainTaskState="true"
+			android:configChanges="layoutDirection|locale|grammaticalGender|fontScale|fontWeightAdjustment|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+			android:exported="true"
+			android:label="@string/app_name"
+			android:launchMode="singleInstance"
+			android:preferMinimalPostProcessing="true" >
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+			<!-- Let Android know that we can handle some USB devices and should receive this event -->
+			<intent-filter>
+				<action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+			</intent-filter>
+			<!-- Drop file event -->
+			<!--
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<data android:mimeType="*/*" />
+			</intent-filter>
+			-->
+		</activity>
+
+<!--
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="io.github.thenumbernine.SDLLuaJIT.androidx-startup"
+            android:exported="false" >
+            <meta-data
+                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+                android:value="androidx.startup" />
+            <meta-data
+                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+                android:value="androidx.startup" />
+            <meta-data
+                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+                android:value="androidx.startup" />
+        </provider>
+
+		<receiver
+            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+            android:directBootAware="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.DUMP" >
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+            </intent-filter>
+        </receiver>
+-->
+	</application>
+
+</manifest>

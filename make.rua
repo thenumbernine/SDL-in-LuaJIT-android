@@ -14,13 +14,16 @@ local copyIfDiffer = |src, dst|do
 end
 
 -- 1) copy assets_patch/ files over LuaJIT/app/src/main/assets/ but only if it differs
-local fromdir = path'assets_patch'
-local todir = path'LuaJIT/app/src/main/assets'
-for srcf in fromdir:rdir() do
-	local dstf = path((srcf.path:gsub(
-		'^'..fromdir.path:patescape()..'/',
-		todir.path:patescape()..'/')))
-	copyIfDiffer(srcf, dstf)
+-- TODO copy the whole cwd, and just skip the LuaJIT dest dir
+local fromdir = path'app'
+local todir = path'LuaJIT/app'
+if fromdir:exists() then
+	for srcf in fromdir:rdir() do
+		local dstf = path((srcf.path:gsub(
+			'^'..fromdir.path:patescape()..'/',
+			todir.path:patescape()..'/')))
+		copyIfDiffer(srcf, dstf)
+	end
 end
 
 -- 2) just forward the make command to LuaJIT/Makefile
