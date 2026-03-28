@@ -234,7 +234,7 @@ print"onCreate DONE"
 end
 --]=======]
 -- [=======[ SDL
-do	
+do
 	-- ok so we have this libmain which is the project C contribution
 	-- it's usually got the lua call code
 	-- but I also for this project squeezed in the SDL_main function as well, which is just a trampoline back to luajit world:
@@ -242,7 +242,6 @@ do
 	-- so it's gotta run on a separate Lua state ...
 	local LiteThread = require 'thread.lite'
 	_G.sdlMainThread = LiteThread{
-		threadFuncType = 'int(*)(int, char**)',
 		code = [[
 print 'here from within the SDL_main thread'
 
@@ -254,9 +253,9 @@ end
 ]]
 	}
 print('sdlMainThread.funcptr', sdlMainThread.funcptr)
-	ffi.cdef[[int (*SDL_main_callback)();]]
+	ffi.cdef[[void*(*SDL_main_callback)(void*);]]
 	local main = ffi.load'main'
-	main.SDL_main_callback = ffi.cast('int(*)()', sdlMainThread.funcptr)
+	main.SDL_main_callback = ffi.cast('void*(*)(void*)', sdlMainThread.funcptr)
 print('main.SDL_main_callback', main.SDL_main_callback)
 
 	local sdlMenu = getNextMenu()
@@ -270,10 +269,12 @@ print('main.SDL_main_callback', main.SDL_main_callback)
 	callbacks.onOptionsItemSelected = function(activity, item, ...)
 		if item:getItemId() == sdlMenu then
 			local SDLActivity = J.org.libsdl.app.SDLActivity
-			print('SDLActivity', SDLActivity)
+print('SDLActivity', SDLActivity)
 			assert(require 'java.class':isa(SDLActivity), "failed to find org.libsdl.app.SDLActivity")
-			local intent = Intent(activity, SDLActivity.class)
-			activity:startActivity(intent)
+			local sdlIntent = Intent(activity, SDLActivity.class)
+			sdlIntent:putExtra('SDL_LIB_NAME', 'main')
+			activity:startActivity(sdlIntent)
+print('done starting activity')
 			return true
 		end
 		return prevOnOptionsItemSelected(activity, item, ...)
