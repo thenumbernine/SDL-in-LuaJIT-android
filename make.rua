@@ -8,6 +8,8 @@ local targets = Targets() --{verbose=true}
 local exec = |...| assert(os.exec(...))	-- assert or nah?
 local cp = |...| exec('cp', ...)
 
+-- welp this might not actually work, because it's across git repos, so timestamps will get messed up
+-- maybe I should touch all files the first time around?
 local copyRule = |srcf, dstf|do
 	targets:add{
 		dsts = {dstf},

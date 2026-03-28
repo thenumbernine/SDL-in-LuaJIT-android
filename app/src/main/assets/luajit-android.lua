@@ -242,14 +242,22 @@ do
 	-- so it's gotta run on a separate Lua state ...
 	local LiteThread = require 'thread.lite'
 	_G.sdlMainThread = LiteThread{
-		threadFuncType = 'int(*)()',
+		threadFuncType = 'int(*)(int, char**)',
 		code = [[
 print 'here from within the SDL_main thread'
+
+local unistd = requrie 'ffi.req' 'c.unistd'
+while true do
+	unistd.sleep(1)
+end
+
 ]]
 	}
+print('sdlMainThread.funcptr', sdlMainThread.funcptr)
 	ffi.cdef[[int (*SDL_main_callback)();]]
 	local main = ffi.load'main'
 	main.SDL_main_callback = ffi.cast('int(*)()', sdlMainThread.funcptr)
+print('main.SDL_main_callback', main.SDL_main_callback)
 
 	local sdlMenu = getNextMenu()
 	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
