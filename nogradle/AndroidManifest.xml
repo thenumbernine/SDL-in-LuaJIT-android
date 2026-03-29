@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-	package="io.github.thenumbernine.SDLLuaJIT"
+	package="io.github.thenumbernine.SDLInLuaJIT"
     android:versionCode="1"
     android:versionName="1.0"
 >
@@ -58,8 +58,8 @@
 	<!-- if you want to connect to the network or internet, uncomment this. -->
 	<uses-permission android:name="android.permission.INTERNET" />
 
-    <permission android:name="io.github.thenumbernine.SDLLuaJIT.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" android:protectionLevel="signature" />
-    <uses-permission android:name="io.github.thenumbernine.SDLLuaJIT.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+    <permission android:name="io.github.thenumbernine.SDLInLuaJIT.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" android:protectionLevel="signature" />
+    <uses-permission android:name="io.github.thenumbernine.SDLInLuaJIT.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
 	<!--
  Create a Java class extending SDLActivity and place it in a
 	 directory under app/src/main/java matching the package, e.g. app/src/main/java/com/gamemaker/game/MyGame.java
@@ -90,7 +90,7 @@ wtf stupid flag is this?
 		 -->
 
 		<activity
-			android:name="io.github.thenumbernine.SDLLuaJIT.Activity"
+			android:name="io.github.thenumbernine.SDLInLuaJIT.Activity"
 			android:alwaysRetainTaskState="true"
 			android:configChanges="layoutDirection|locale|grammaticalGender|fontScale|fontWeightAdjustment|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
 			android:exported="true"
@@ -142,7 +142,7 @@ wtf stupid flag is this?
 <!--
         <provider
             android:name="androidx.startup.InitializationProvider"
-            android:authorities="io.github.thenumbernine.SDLLuaJIT.androidx-startup"
+            android:authorities="io.github.thenumbernine.SDLInLuaJIT.androidx-startup"
             android:exported="false" >
             <meta-data
                 android:name="androidx.emoji2.text.EmojiCompatInitializer"

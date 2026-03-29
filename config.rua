@@ -1,4 +1,4 @@
 -- used with the rename.rua script to one-time rename the Android app from io.github.thenumbernine.LuaJIT to whatever you want.
-package = 'io.github.thenumbernine.SDLLuaJIT'
-appname = 'SDL-LuaJIT'
+package = 'io.github.thenumbernine.SDLInLuaJIT'
+appname = 'SDL-in-LuaJIT'
 -- TODO archive name as well.  meh for now.
