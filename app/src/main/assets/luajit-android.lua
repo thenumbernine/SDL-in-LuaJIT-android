@@ -448,6 +448,7 @@ end)
 			-- dir choose
 			click = function()
 				local intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+				intent:putExtra('android.content.extra.SHOW_ADVANCED', true)
 				intent:addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 				activity:startActivityForResult(intent, pickProjectFolder)
 			end,
@@ -461,6 +462,7 @@ end)
 			-- dir chooser here
 			click = function()
 				local intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+				intent:putExtra('android.content.extra.SHOW_ADVANCED', true)
 				intent:addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 				activity:startActivityForResult(intent, pickCwdFolder)
 			end,
@@ -471,6 +473,7 @@ end)
 			-- file chooser here
 			click = function()
 				local intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+				intent:putExtra('android.content.extra.SHOW_ADVANCED', true)
 				intent:addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 				activity:startActivityForResult(intent, pickLaunchFile)
 			end,
