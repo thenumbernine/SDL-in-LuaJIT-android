@@ -473,6 +473,8 @@ end)
 			-- file chooser here
 			click = function()
 				local intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+				intent:setType'*/*'
+				intent:addCategory(Intent.CATEGORY_OPENABLE)
 				intent:putExtra('android.content.extra.SHOW_ADVANCED', true)
 				intent:addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 				activity:startActivityForResult(intent, pickLaunchFile)
@@ -513,21 +515,25 @@ end)
 	callbacks.onActivityResult = function(activity, requestCode, resultCode, data)
 		prevOnActivityResult(activity, requestCode, resultCode, data)
 
+		local function getDataFilePath()
+			local result = tostring(data:getData():getPath())
+			result = result:gsub('^/tree/primary:', '/sdcard/')	-- when picking a folder
+			result = result:gsub('^/document/primary:', '/sdcard/')	-- when picking a file
+			return J:_str(result)
+		end
+
 		local requestIntVal = requestCode:intValue()
 		if requestIntVal == pickCwdFolder then
 			if resultCode:intValue() == Activity.RESULT_OK then
-				local treeUri = data:getData()
-				cwdRow.edit:setText(treeUri)
+				cwdRow.edit:setText(getDataFilePath())
 			end
 		elseif requestIntVal == getNextActivity() then
 			if resultCode:intValue() == Activity.RESULT_OK then
-				local treeUri = data:getData()
-				projectRow.edit:setText(treeUri)
+				projectRow.edit:setText(getDataFilePath())
 			end
 		elseif requestIntVal == pickLaunchFile then
 			if resultCode:intValue() == Activity.RESULT_OK then
-				local treeUri = data:getData()
-				fileRow.edit:setText(treeUri)
+				fileRow.edit:setText(getDataFilePath())
 			end
 		end
 	end
