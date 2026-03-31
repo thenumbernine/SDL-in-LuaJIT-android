@@ -246,14 +246,14 @@ do
 -- once this thread ends, SDL ragequits, so be sure to busy-loop ...
 print 'here from within the SDL_main thread'
 
---[==[ not working?
+--[==[ not working? hmm why not, ffi is there, ffi.os == Android, what gives ...
 local unistd = require 'ffi.req' 'c.unistd'
 --]==]
 -- [==[ instead
 local ffi = require 'ffi'
 ffi.cdef[[unsigned int sleep(unsigned int);]]
 --]==]
-while true do
+for i=1,5 do
 	print(os.date(), 'in SDL thread')
 	ffi.C.sleep(1)
 end
@@ -261,24 +261,24 @@ end
 ]=]
 	}
 	function sdlMainThread:close() end	-- I don't trust lite thread GC with lua-java ...
-print('sdlMainThread.funcptr', sdlMainThread.funcptr)
 	ffi.cdef[[void*(*SDL_main_callback)(void*);]]
 	local main = ffi.load'main'
 	main.SDL_main_callback = ffi.cast('void*', ffi.cast('uintptr_t', sdlMainThread.funcptr))
-print('main.SDL_main_callback', main.SDL_main_callback)
-
-	-- [[ hmm these don't seem to be working ...
-	J.System:loadLibrary'SDL3'
-	J.System:loadLibrary'main'	-- should already be loaded just for us to be here
-	--]]
 
 	local prevOnCreate = callbacks.onCreate
 	callbacks.onCreate = function(activity, savedInstanceState, ...)
 		prevOnCreate(activity, savedInstanceState, ...)
 
-		local SDL = J.org.libsdl.app.SDL
-		SDL:initialize()
-		SDL:setContext(activity)	-- ??? or I want it in the new intent activity...
+		-- doing this is required for SDLActivity:nativeSetenv to work:
+		J.System:loadLibrary'SDL3'
+
+		-- is nativeSetenv the same as SDL_SetHint?  it maps to setenv() ... is it only so for before SDL_Init runs?
+		local SDLActivity = J.org.libsdl.app.SDLActivity
+		assert(require 'java.class':isa(SDLActivity), "failed to find org.libsdl.app.SDLActivity")
+		SDLActivity:nativeSetenv("SDL_ANDROID_ALLOW_RECREATE_ACTIVITY", "1")
+
+		-- now we want a textarea or button for gettign a dir list , and then list to show all .lua files or other dirs in the dir
+		-- and we want a way to pick the launch cwd and launch args.
 	end
 
 	local sdlMenu = getNextMenu()
@@ -292,12 +292,8 @@ print('main.SDL_main_callback', main.SDL_main_callback)
 	callbacks.onOptionsItemSelected = function(activity, item, ...)
 		if item:getItemId() == sdlMenu then
 			local SDLActivity = J.org.libsdl.app.SDLActivity
-print('SDLActivity', SDLActivity)
-			assert(require 'java.class':isa(SDLActivity), "failed to find org.libsdl.app.SDLActivity")
 			local sdlIntent = Intent(activity, SDLActivity.class)
-			--sdlIntent:putExtra('SDL_LIB_NAME', 'main')
 			activity:startActivity(sdlIntent)
-print('done starting activity')
 			return true
 		end
 		return prevOnOptionsItemSelected(activity, item, ...)
