@@ -235,59 +235,34 @@ end
 --]=======]
 -- [=======[ SDL
 do
-	local prevOnCreate = callbacks.onCreate
-	callbacks.onCreate = function(activity, savedInstanceState, ...)
-		prevOnCreate(activity, savedInstanceState, ...)
+	local Button = J.android.widget.Button
 
-		-- doing this is required for SDLActivity:nativeSetenv to work:
-		J.System:loadLibrary'SDL3'
+	local sdlLaunchLayout
+	local cwdRow
+	local fileRow
+	local projectRow
+	local launchRow
 
-		-- is nativeSetenv the same as SDL_SetHint?  it maps to setenv() ... is it only so for before SDL_Init runs?
-		local SDLActivity = J.org.libsdl.app.SDLActivity
-		assert(require 'java.class':isa(SDLActivity), "failed to find org.libsdl.app.SDLActivity")
-		SDLActivity:nativeSetenv("SDL_ANDROID_ALLOW_RECREATE_ACTIVITY", "1")
+	local pickCwdFolder = getNextActivity()
+	local pickProjectFolder = getNextActivity()
+	local pickLaunchFile = getNextActivity()
 
-		-- now we want a textarea or button for gettign a dir list , and then list to show all .lua files or other dirs in the dir
-		-- and we want a way to pick the launch cwd and launch args.
-		-- saving them in the bundle would be nice too.
-		--[[
-		what will we need?
-		- cwd
-		- launch .lua file
-		- package.path and package.cpath
-		- maybe a checkbox for using the assets loader
-		- also looks like any .so used (in bin/Android/arm folder) will need to be copied back into the /data/data/package/lib/ folder
-		- ... or symlink'd ?
-
-		- then make sure activity has all we want, like orientation
-		- and make sure activity is fullscreen, no title bar ...
-		--]]
-		luaLaunchListView = J.android.widget.ListView(activity)
-	end
-
-	local sdlMenu = getNextMenu()
-	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
-	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
-		menu:add(0, sdlMenu, 0, 'SDL...')
-		return prevOnCreateOptionsMenu(activity, menu, ...)
-	end
-
-	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
-	callbacks.onOptionsItemSelected = function(activity, item, ...)
-		if item:getItemId() == sdlMenu then
-
-
-			-- ok so we have this libmain which is the project C contribution
-			-- it's usually got the lua call code
-			-- but I also for this project squeezed in the SDL_main function as well, which is just a trampoline back to luajit world:
-			-- however it's gonna run on a separate thread
-			-- so it's gotta run on a separate Lua state ...
-			local LiteThread = require 'thread.lite'
-			_G.sdlMainThread = LiteThread{
-				init = function(th)
-					th.lua('appFilesDir = ...', tostring(activity:getFilesDir():getAbsolutePath()))
-				end,
-				code = [=[
+	local function launchSDL(activity)
+		-- ok so we have this libmain which is the project C contribution
+		-- it's usually got the lua call code
+		-- but I also for this project squeezed in the SDL_main function as well, which is just a trampoline back to luajit world:
+		-- however it's gonna run on a separate thread
+		-- so it's gotta run on a separate Lua state ...
+		local LiteThread = require 'thread.lite'
+		_G.sdlMainThread = LiteThread{
+			init = function(th)
+				th.lua('appFilesDir = ...', tostring(activity:getFilesDir():getAbsolutePath()))
+				th.lua('runDir = ...', tostring(cwdRow.edit:getText()))
+				th.lua('runFile = ...', tostring(fileRow.edit:getText()))
+				th.lua('projectDir = ...', tostring(projectRow.edit:getText()))
+				th.lua('runArg = ...', tostring(launchRow.edit:getText()))
+			end,
+			code = [=[
 print 'here from within the SDL_main thread'
 
 xpcall(function()
@@ -297,7 +272,6 @@ xpcall(function()
 	print('ffi.arch', ffi.arch)
 
 	local libDir = appFilesDir..'/lib'
-	local projectDir = '/sdcard/Documents/Projects/lua'
 
 	ffi.cdef[[int chdir(const char *path);]]
 	local function chdir(s)
@@ -325,6 +299,9 @@ xpcall(function()
 			print('FAILED: '..cmd)
 		end
 	end
+
+-- TODO all this but only when it's needed ...
+-- you can use distinfo digraph to tell what libs are being used.
 
 	exec('mkdir -p '..libDir)
 	local function setuplib(projectName, libLoadName)
@@ -366,43 +343,203 @@ xpcall(function()
 	setupsymlink'libvulkan.so'
 	require 'ffi.load'.vulkan = libDir..'/libvulkan.so'
 
+	local arg = {runArg}
 
-	local arg = {}
-
-	local dir, run = 'gl/tests', 'test_tex.lua'
-	assert(dir and run, "need to define both dir and run")
-
-	if run:match'%.rua$' then
+	if runFile:match'%.rua$' then
 		require 'ext'
 		require 'ext.ctypes'
 		require 'langfix'
 	end
-	chdir(projectDir..'/'..dir)
+	chdir(runDir)
 	print('starting loadfile...')
-	assert(loadfile(assert(run)))(table.unpack(arg))
+	assert(loadfile(assert(runFile)))(table.unpack(arg))
 
 	print'DONE SDL_main_callback'
 end, function(err)
 	print('SDL_main_callback err\n'..err..'\n'..debug.traceback())
 end)
 ]=]
+		}
+		function sdlMainThread:close() end	-- I don't trust lite thread GC with lua-java ...
+		ffi.cdef[[void*(*SDL_main_callback)(void*);]]
+		local main = ffi.load'main'
+
+		-- TODO on checking liteThread status, I think I'm gonna need a mutex per Lua State to make sure two separate threads don't access it at the same time.
+		main.SDL_main_callback = ffi.cast('void*', ffi.cast('uintptr_t', sdlMainThread.funcptr))
+
+
+		local SDLActivity = J.org.libsdl.app.SDLActivity
+		local sdlIntent = Intent(activity, SDLActivity.class)
+		activity:startActivity(sdlIntent)
+	end
+
+	local prevOnCreate = callbacks.onCreate
+	callbacks.onCreate = function(activity, savedInstanceState, ...)
+		prevOnCreate(activity, savedInstanceState, ...)
+
+		-- doing this is required for SDLActivity:nativeSetenv to work:
+		J.System:loadLibrary'SDL3'
+
+		-- tell SDL don't quit the app when you finish.
+		-- is nativeSetenv the same as SDL_SetHint?  it maps to setenv() ... is it only so for before SDL_Init runs?
+		local SDLActivity = J.org.libsdl.app.SDLActivity
+		assert(require 'java.class':isa(SDLActivity), "failed to find org.libsdl.app.SDLActivity")
+		SDLActivity:nativeSetenv("SDL_ANDROID_ALLOW_RECREATE_ACTIVITY", "1")
+
+		-- now we want a textarea or button for gettign a dir list , and then list to show all .lua files or other dirs in the dir
+		-- and we want a way to pick the launch cwd and launch args.
+		-- saving them in the bundle would be nice too.
+		--[[
+		what will we need?
+		- cwd
+		- launch .lua file
+		- package.path and package.cpath
+		- maybe a checkbox for using the assets loader
+		- also looks like any .so used (in bin/Android/arm folder) will need to be copied back into the /data/data/package/lib/ folder
+		- ... or symlink'd ?
+
+		- then make sure activity has all we want, like orientation
+		- and make sure activity is fullscreen, no title bar ...
+		--]]
+		sdlLaunchLayout = LinearLayout(activity)
+		sdlLaunchLayout:setOrientation(LinearLayout.VERTICAL)
+		sdlLaunchLayout:setLayoutParams(LinearLayout.LayoutParams(
+			LinearLayout.LayoutParams.MATCH_PARENT,
+			LinearLayout.LayoutParams.MATCH_PARENT
+		))
+
+		local function addRow(args)
+			local row = LinearLayout(activity)
+			row:setOrientation(LinearLayout.HORIZONTAL)
+			row:setLayoutParams(LinearLayout.LayoutParams(
+				ViewGroup.LayoutParams.MATCH_PARENT,
+				ViewGroup.LayoutParams.WRAP_CONTENT
+			))
+
+			local edit = J.android.widget.EditText(activity)
+			edit:setLayoutParams(LinearLayout.LayoutParams(
+				0,
+				ViewGroup.LayoutParams.WRAP_CONTENT,
+				1	-- weight
+			))
+			if args.hint then edit:setHint(args.hint) end
+			if args.text then edit:setText(args.text) end
+			row:addView(edit)
+
+			if args.click then
+				local button = Button(activity)
+				button:setText(args.button or '...')
+				button:setOnClickListener(J.android.view.View.OnClickListener(args.click))
+				row:addView(button)
+			end
+
+			sdlLaunchLayout:addView(row)
+
+			return {
+				edit = edit,
+				button = button,
+				row = row,
 			}
-			function sdlMainThread:close() end	-- I don't trust lite thread GC with lua-java ...
-			ffi.cdef[[void*(*SDL_main_callback)(void*);]]
-			local main = ffi.load'main'
+		end
+		projectRow = addRow{
+			hint = 'projectDir',
+			text = '/sdcard/Documents/Projects/lua',
 
-			-- TODO on checking liteThread status, I think I'm gonna need a mutex per Lua State to make sure two separate threads don't access it at the same time.
-			main.SDL_main_callback = ffi.cast('void*', ffi.cast('uintptr_t', sdlMainThread.funcptr))
+			-- dir choose
+			click = function()
+				local intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+				intent:addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+				activity:startActivityForResult(intent, pickProjectFolder)
+			end,
+		}
+		cwdRow = addRow{
+			hint = 'cwd',
 
+			-- TODO save in bundle and initialize as whatever teh external sd card dir is
+			text = '/sdcard/Documents/Projects/lua/gl/tests',
 
+			-- dir chooser here
+			click = function()
+				local intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+				intent:addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+				activity:startActivityForResult(intent, pickCwdFolder)
+			end,
+		}
+		fileRow = addRow{
+			hint = 'run',
+			text = '/sdcard/Documents/Projects/lua/gl/tests/test_tex.lua',
+			-- file chooser here
+			click = function()
+				local intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+				intent:addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+				activity:startActivityForResult(intent, pickLaunchFile)
+			end,
+		}
 
-			local SDLActivity = J.org.libsdl.app.SDLActivity
-			local sdlIntent = Intent(activity, SDLActivity.class)
-			activity:startActivity(sdlIntent)
+		-- local packageRow = addRow()	-- TODO package.path and package.cpath ...
+
+		launchRow = addRow{
+			hint = 'args',
+			button = 'Go!',
+			click = function()
+				-- TODO how to get back to this ...
+				launchSDL(activity)
+			end,
+		}
+
+		activity:setContentView(sdlLaunchLayout)
+	end
+
+	local sdlMenu = getNextMenu()
+	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
+	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
+		menu:add(0, sdlMenu, 0, 'SDL...')
+		return prevOnCreateOptionsMenu(activity, menu, ...)
+	end
+
+	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
+	callbacks.onOptionsItemSelected = function(activity, item, ...)
+		if item:getItemId() == sdlMenu then
+			activity:setContentView(sdlLaunchLayout)
 			return true
 		end
 		return prevOnOptionsItemSelected(activity, item, ...)
 	end
+
+	local prevOnActivityResult = callbacks.onActivityResult
+	callbacks.onActivityResult = function(activity, requestCode, resultCode, data)
+		prevOnActivityResult(activity, requestCode, resultCode, data)
+
+		local requestIntVal = requestCode:intValue()
+		if requestIntVal == pickCwdFolder then
+			if resultCode:intValue() == Activity.RESULT_OK then
+				local treeUri = data:getData()
+				cwdRow.edit:setText(treeUri)
+			end
+		elseif requestIntVal == getNextActivity() then
+			if resultCode:intValue() == Activity.RESULT_OK then
+				local treeUri = data:getData()
+				projectRow.edit:setText(treeUri)
+			end
+		elseif requestIntVal == pickLaunchFile then
+			if resultCode:intValue() == Activity.RESULT_OK then
+				local treeUri = data:getData()
+				fileRow.edit:setText(treeUri)
+			end
+		end
+	end
+
+	--[[ TODO this wont work for SDLActivity, only the main UI laucnher's back button
+	-- how to handle SDLActivity's backbutton?
+	-- maybe I need to subclass it finally...
+	local prevOnBackPressed = callbacks.onBackPressed
+	callbacks.onBackPressed = function(activity, ...)
+		-- terminate sdl activity?
+		-- just switch back to sdl view?
+		return activity:setContentView(sdlLaunchLayout)
+		--return prevOnBackPressed(activity, ...)
+	end
+	--]]
 end
 --]=======]
 
