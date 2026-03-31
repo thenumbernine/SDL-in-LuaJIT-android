@@ -34,6 +34,9 @@ local copyFolderRule = |fromdir, todir|do
 	end
 end
 
+
+SDLDir = path'SDL'
+
 copyFolderRule(
 	path'app',
 	path'LuaJIT/app'
@@ -46,12 +49,12 @@ copyRule(
 
 -- update the icon
 copyRule(
-	path'SDL/VisualC-GDK/logos/Logo480x480.png',
+	SDLDir/'VisualC-GDK/logos/Logo480x480.png',
 	path'icon.png'
 )
 
 copyFolderRule(
-	path'SDL/android-project/app/src/main/java',
+	SDLDir/'android-project/app/src/main/java',
 	path'app/src/main/java'
 )
 
@@ -82,26 +85,36 @@ androidSdkPlatformsDir = androidSdkRoot/'platforms'
 androidSdkPlatform = dirsort(androidSdkPlatformsDir):last()
 androidJar = androidSdkPlatformsDir/androidSdkPlatform/'android.jar'
 androidNdkRoot = androidSdkRoot/'ndk'
-androidNdkBin = latest(androidNdkRoot)/'toolchains/llvm/prebuilt/linux-x86_64/bin'
+androidNdkHome = latest(androidNdkRoot)	-- ANDROID_NDK_HOME ... still the name that is used?
+androidNdkBin = androidNdkHome/'toolchains/llvm/prebuilt/linux-x86_64/bin'
+androidCMakeToolchainFile = (androidNdkHome/'build/cmake/android.toolchain.cmake')
+assert(androidCMakeToolchainFile:exists())
 libArch = 'armeabi-v7a'	-- arch folder in lib/
 
---[[
-libSDL_so = path'LuaJIT/lib/libSDL3.so'
+-- [[
+libSDL_so = path'LuaJIT/lib'/libArch/'libSDL3.so'
 if not libSDL_so:exists() then
-	local sdlBuildDir = path'SDL/build'
-	sdlBuildDir :mkdir()
+	local SDLAbsDir = SDLDir:abs()
+	local sdlBuildDir = path'_SDL_build'/libArch
+	sdlBuildDir :mkdir(true)
+	-- https://developer.android.com/studio/projects/configure-cmake
 	exec('cd', sdlBuildDir,
 		'&&',
-		'cmake ..',
-		'-DCMAKE_SYSTEM_NAME="Android"',
-		'-DCMAKE_ANDROID_NDK='..androidSdkRoot:escape(),
-		'-DANDROID_PLATFORM='..androidSdkPlatform,
+		'cmake', SDLAbsDir,
 		'-DANDROID_ABI="'..libArch..'"',
-		'-DANDROID_STL=c++_shared'
+
+		--'-DANDROID_PLATFORM='..androidSdkPlatform,	-- this only works if latest is <= android-35 otherwise set "latest"
+		'-DANDROID_PLATFORM=latest',
+
+		'-DANDROID_NDK='..androidNdkHome:escape(),
+		'-DCMAKE_TOOLCHAIN_FILE='..androidCMakeToolchainFile:escape(),
+		'-DANDROID_STL=c++_shared',
+
 		--'-DSDL_TEST_LIBRARY=OFF',
 		--'-DSDL_TESTS=OFF',
+		'&& make'
 	)
-	error'done'
+	exec('cp', sdlBuildDir/'libSDL3.so', libSDL_so)
 end
 --]]
 

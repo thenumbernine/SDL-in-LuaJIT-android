@@ -243,20 +243,37 @@ do
 	local LiteThread = require 'thread.lite'
 	_G.sdlMainThread = LiteThread{
 		code = [[
+-- once this thread ends, SDL ragequits, so be sure to busy-loop ...
 print 'here from within the SDL_main thread'
 
-local unistd = requrie 'ffi.req' 'c.unistd'
+--local unistd = require 'ffi.req' 'c.unistd'
 while true do
-	unistd.sleep(1)
+	print'here'
+	--unistd.sleep(1)
 end
 
 ]]
 	}
+	function sdlMainThread:close() end	-- I don't trust lite thread GC with lua-java ...
 print('sdlMainThread.funcptr', sdlMainThread.funcptr)
 	ffi.cdef[[void*(*SDL_main_callback)(void*);]]
 	local main = ffi.load'main'
-	main.SDL_main_callback = ffi.cast('void*(*)(void*)', sdlMainThread.funcptr)
+	main.SDL_main_callback = ffi.cast('void*', ffi.cast('uintptr_t', sdlMainThread.funcptr))
 print('main.SDL_main_callback', main.SDL_main_callback)
+
+	-- [[ hmm these don't seem to be working ...
+	J.System:loadLibrary'SDL3'
+	J.System:loadLibrary'main'	-- should already be loaded just for us to be here
+	--]]
+
+	local prevOnCreate = callbacks.onCreate
+	callbacks.onCreate = function(activity, savedInstanceState, ...)
+		prevOnCreate(activity, savedInstanceState, ...)
+
+		local SDL = J.org.libsdl.app.SDL
+		SDL:initialize()
+		SDL:setContext(activity)	-- ??? or I want it in the new intent activity...
+	end
 
 	local sdlMenu = getNextMenu()
 	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
@@ -272,7 +289,7 @@ print('main.SDL_main_callback', main.SDL_main_callback)
 print('SDLActivity', SDLActivity)
 			assert(require 'java.class':isa(SDLActivity), "failed to find org.libsdl.app.SDLActivity")
 			local sdlIntent = Intent(activity, SDLActivity.class)
-			sdlIntent:putExtra('SDL_LIB_NAME', 'main')
+			--sdlIntent:putExtra('SDL_LIB_NAME', 'main')
 			activity:startActivity(sdlIntent)
 print('done starting activity')
 			return true
