@@ -242,17 +242,23 @@ do
 	-- so it's gotta run on a separate Lua state ...
 	local LiteThread = require 'thread.lite'
 	_G.sdlMainThread = LiteThread{
-		code = [[
+		code = [=[
 -- once this thread ends, SDL ragequits, so be sure to busy-loop ...
 print 'here from within the SDL_main thread'
 
---local unistd = require 'ffi.req' 'c.unistd'
+--[==[ not working?
+local unistd = require 'ffi.req' 'c.unistd'
+--]==]
+-- [==[ instead
+local ffi = require 'ffi'
+ffi.cdef[[unsigned int sleep(unsigned int);]]
+--]==]
 while true do
-	print'here'
-	--unistd.sleep(1)
+	print(os.date(), 'in SDL thread')
+	ffi.C.sleep(1)
 end
 
-]]
+]=]
 	}
 	function sdlMainThread:close() end	-- I don't trust lite thread GC with lua-java ...
 print('sdlMainThread.funcptr', sdlMainThread.funcptr)

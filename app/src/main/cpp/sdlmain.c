@@ -13,7 +13,6 @@ and it's also on a separate java thread from the Android UI thread.
 I'm calling it as-is without subclassing/modification of SDLActivity, so args is going to be empty.
 */
 JNIEXPORT int SDL_main(int argc, char** argv) {
-printf("in SDL_main with %p\n", SDL_main_callback);
 	if (SDL_main_callback) {
 		return (int)SDL_main_callback(NULL);
 	}

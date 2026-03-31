@@ -78,18 +78,12 @@ local latest = |p| p/dirsort(p):last()
 
 home = path(os.home())
 
-androidStudioRoot = home/'android-studio'
 androidSdkRoot = home/'Android/Sdk'
-buildToolsDir = latest(androidSdkRoot/'build-tools')
-androidSdkPlatformsDir = androidSdkRoot/'platforms'
-androidSdkPlatform = dirsort(androidSdkPlatformsDir):last()
-androidJar = androidSdkPlatformsDir/androidSdkPlatform/'android.jar'
-androidNdkRoot = androidSdkRoot/'ndk'
-androidNdkHome = latest(androidNdkRoot)	-- ANDROID_NDK_HOME ... still the name that is used?
-androidNdkBin = androidNdkHome/'toolchains/llvm/prebuilt/linux-x86_64/bin'
+androidNdkHome = latest(androidSdkRoot/'ndk')	-- ANDROID_NDK_HOME ... still the name that is used?
 androidCMakeToolchainFile = (androidNdkHome/'build/cmake/android.toolchain.cmake')
 assert(androidCMakeToolchainFile:exists())
 libArch = 'armeabi-v7a'	-- arch folder in lib/
+ndkCrossPrefix = 'arm-linux-androideabi'
 
 -- [[
 libSDL_so = path'LuaJIT/lib'/libArch/'libSDL3.so'
@@ -102,10 +96,7 @@ if not libSDL_so:exists() then
 		'&&',
 		'cmake', SDLAbsDir,
 		'-DANDROID_ABI="'..libArch..'"',
-
-		--'-DANDROID_PLATFORM='..androidSdkPlatform,	-- this only works if latest is <= android-35 otherwise set "latest"
 		'-DANDROID_PLATFORM=latest',
-
 		'-DANDROID_NDK='..androidNdkHome:escape(),
 		'-DCMAKE_TOOLCHAIN_FILE='..androidCMakeToolchainFile:escape(),
 		'-DANDROID_STL=c++_shared',
@@ -115,7 +106,21 @@ if not libSDL_so:exists() then
 		'&& make'
 	)
 	exec('cp', sdlBuildDir/'libSDL3.so', libSDL_so)
+	-- and for c++_shared ...
+	exec('cp',
+		androidNdkHome/'toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/'/ndkCrossPrefix/'libc++_shared.so',
+		(libSDL_so:getdir())
+	)
 end
+--]]
+
+-- TODO better would be to include make.rua's rules ... and have some kind of make targets launcher so it's all basically like gnu-make but with proper variables and proper escaping.
+-- then you could do this to add extra .so's to the apk rule:
+--[[
+targets:findRuleForDst(apkUnalignedPath}.srcs:append{
+	libArchDir/'libSDL3.so',
+	libArchDir/'libc++_shared.so',
+}
 --]]
 
 -- 2) just forward the make command to LuaJIT/Makefile
