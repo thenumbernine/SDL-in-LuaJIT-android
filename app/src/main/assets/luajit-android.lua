@@ -235,36 +235,6 @@ end
 --]=======]
 -- [=======[ SDL
 do
-	-- ok so we have this libmain which is the project C contribution
-	-- it's usually got the lua call code
-	-- but I also for this project squeezed in the SDL_main function as well, which is just a trampoline back to luajit world:
-	-- however it's gonna run on a separate thread
-	-- so it's gotta run on a separate Lua state ...
-	local LiteThread = require 'thread.lite'
-	_G.sdlMainThread = LiteThread{
-		code = [=[
--- once this thread ends, SDL ragequits, so be sure to busy-loop ...
-print 'here from within the SDL_main thread'
-
---[==[ not working? hmm why not, ffi is there, ffi.os == Android, what gives ...
-local unistd = require 'ffi.req' 'c.unistd'
---]==]
--- [==[ instead
-local ffi = require 'ffi'
-ffi.cdef[[unsigned int sleep(unsigned int);]]
---]==]
-for i=1,5 do
-	print(os.date(), 'in SDL thread')
-	ffi.C.sleep(1)
-end
-
-]=]
-	}
-	function sdlMainThread:close() end	-- I don't trust lite thread GC with lua-java ...
-	ffi.cdef[[void*(*SDL_main_callback)(void*);]]
-	local main = ffi.load'main'
-	main.SDL_main_callback = ffi.cast('void*', ffi.cast('uintptr_t', sdlMainThread.funcptr))
-
 	local prevOnCreate = callbacks.onCreate
 	callbacks.onCreate = function(activity, savedInstanceState, ...)
 		prevOnCreate(activity, savedInstanceState, ...)
@@ -279,6 +249,20 @@ end
 
 		-- now we want a textarea or button for gettign a dir list , and then list to show all .lua files or other dirs in the dir
 		-- and we want a way to pick the launch cwd and launch args.
+		-- saving them in the bundle would be nice too.
+		--[[
+		what will we need?
+		- cwd
+		- launch .lua file
+		- package.path and package.cpath
+		- maybe a checkbox for using the assets loader
+		- also looks like any .so used (in bin/Android/arm folder) will need to be copied back into the /data/data/package/lib/ folder
+		- ... or symlink'd ?
+
+		- then make sure activity has all we want, like orientation
+		- and make sure activity is fullscreen, no title bar ...
+		--]]
+		luaLaunchListView = J.android.widget.ListView(activity)
 	end
 
 	local sdlMenu = getNextMenu()
@@ -291,6 +275,127 @@ end
 	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
 	callbacks.onOptionsItemSelected = function(activity, item, ...)
 		if item:getItemId() == sdlMenu then
+
+
+			-- ok so we have this libmain which is the project C contribution
+			-- it's usually got the lua call code
+			-- but I also for this project squeezed in the SDL_main function as well, which is just a trampoline back to luajit world:
+			-- however it's gonna run on a separate thread
+			-- so it's gotta run on a separate Lua state ...
+			local LiteThread = require 'thread.lite'
+			_G.sdlMainThread = LiteThread{
+				init = function(th)
+					th.lua('appFilesDir = ...', tostring(activity:getFilesDir():getAbsolutePath()))
+				end,
+				code = [=[
+print 'here from within the SDL_main thread'
+
+xpcall(function()
+
+	local ffi = require 'ffi'
+	print('ffi.os', ffi.os)
+	print('ffi.arch', ffi.arch)
+
+	local libDir = appFilesDir..'/lib'
+	local projectDir = '/sdcard/Documents/Projects/lua'
+
+	ffi.cdef[[int chdir(const char *path);]]
+	local function chdir(s)
+		local res = ffi.C.chdir((assert(s)))
+		assert(res==0, 'chdir '..tostring(s)..' failed')
+	end
+
+	package.path = table.concat({
+		'./?.lua',
+		projectDir..'/?.lua',
+		projectDir..'/?/?.lua',
+	}, ';')
+	package.cpath = table.concat({
+		'./?.so',
+		projectDir..'/?.so',
+		projectDir..'/?/init.so',
+	}, ';')
+
+	ffi.cdef[[int setenv(const char*,const char*,int);]]
+	ffi.C.setenv('LUA_PATH', package.path, 1)
+	ffi.C.setenv('LUA_CPATH', package.cpath, 1)
+
+	local function exec(cmd)
+		if not os.execute(cmd) then
+			print('FAILED: '..cmd)
+		end
+	end
+
+	exec('mkdir -p '..libDir)
+	local function setuplib(projectName, libLoadName)
+		local libFileName = 'lib'..libLoadName..'.so'
+		exec(('cp %q %q'):format(
+			projectDir..'/'..projectName..'/bin/Android/arm/'..libFileName,
+			libDir..'/')
+		)
+		require 'ffi.load'[libLoadName] = libDir..'/'..libFileName
+	end
+	local function setupsymlink(libFileName)
+		local dst = libDir..'/'..libFileName
+		exec('rm '..dst)
+		exec('ln -s /system/lib/'..libFileName..' '..dst)
+	end
+
+	setuplib('audio', 'ogg')
+	setuplib('audio', 'openal')
+	setuplib('audio', 'vorbis')
+	setuplib('audio', 'vorbisenc')	-- needs vorbis
+	setuplib('audio', 'vorbisfile')	-- needs vorbis
+
+	setuplib('gui', 'brotlicommon')		-- libbrotlicommon used by libbrotlidec
+	setuplib('gui', 'brotlidec')				-- libbrotlidec used by libfreetype
+	setuplib('gui', 'bz2')							-- libbz2 used by libfreetype
+	setuplib('gui', 'freetype')
+
+	setuplib('image', 'z')							-- libz used by libpng
+	setuplib('image', 'png')
+	setuplib('image', 'jpeg')
+	setuplib('image', 'tiff')
+
+	setuplib('imgui', 'cimgui_sdl3')
+
+	-- wait is it already there?
+	exec(('cp %q %q'):format('libc++_shared.so', libDir..'/'))
+
+	-- vulkan
+	setupsymlink'libvulkan.so'
+	require 'ffi.load'.vulkan = libDir..'/libvulkan.so'
+
+
+	local arg = {}
+
+	local dir, run = 'gl/tests', 'test_tex.lua'
+	assert(dir and run, "need to define both dir and run")
+
+	if run:match'%.rua$' then
+		require 'ext'
+		require 'ext.ctypes'
+		require 'langfix'
+	end
+	chdir(projectDir..'/'..dir)
+	print('starting loadfile...')
+	assert(loadfile(assert(run)))(table.unpack(arg))
+
+	print'DONE SDL_main_callback'
+end, function(err)
+	print('SDL_main_callback err\n'..err..'\n'..debug.traceback())
+end)
+]=]
+			}
+			function sdlMainThread:close() end	-- I don't trust lite thread GC with lua-java ...
+			ffi.cdef[[void*(*SDL_main_callback)(void*);]]
+			local main = ffi.load'main'
+
+			-- TODO on checking liteThread status, I think I'm gonna need a mutex per Lua State to make sure two separate threads don't access it at the same time.
+			main.SDL_main_callback = ffi.cast('void*', ffi.cast('uintptr_t', sdlMainThread.funcptr))
+
+
+
 			local SDLActivity = J.org.libsdl.app.SDLActivity
 			local sdlIntent = Intent(activity, SDLActivity.class)
 			activity:startActivity(sdlIntent)
