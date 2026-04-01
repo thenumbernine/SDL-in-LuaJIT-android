@@ -69,25 +69,15 @@ do
 		prevOnCreate(activity, savedInstanceState, ...)
 
 		statsLoopHandler = J.android.os.Handler(J.android.os.Looper:getMainLooper())
-
-		local StatsLoopRunnable = J.Runnable:_subclass{
-			methods = {
-				run = {
-					isPublic = true,
-					sig = {'void'},
-					value = function(this)
-						local Debug = J.android.os.Debug
-						local mem = Debug.MemoryInfo()
-						Debug:getMemoryInfo(mem)
-						print(os.date()..' mem: '..tostring(mem:getTotalPss())..'kb')
-						if isWatchingRAM then
-							statsLoopHandler:postDelayed(this, 1000)
-						end
-					end,
-				},
-			}
-		}
-		statsLoopRunnable = StatsLoopRunnable()
+		statsLoopRunnable = J.Runnable:_cb(function(this)
+			local Debug = J.android.os.Debug
+			local mem = Debug.MemoryInfo()
+			Debug:getMemoryInfo(mem)
+			print(os.date()..' mem: '..tostring(mem:getTotalPss())..'kb')
+			if isWatchingRAM then
+				statsLoopHandler:postDelayed(this, 1000)
+			end
+		end)
 	end
 
 	local prevOnResume = callbacks.onResume
@@ -246,8 +236,17 @@ do
 	local pickCwdFolder = getNextActivity()
 	local pickProjectFolder = getNextActivity()
 	local pickLaunchFile = getNextActivity()
-
+	local sdlIsRunning
 	local function launchSDL(activity)
+		local SDLActivity = J.org.libsdl.app.SDLActivity
+
+		if SDLActivity.mSDLThread ~= nil
+		and not SDLActivity.mSDLMainFinished
+		then
+			print('tried to launchSDL when mSDLThread already exists!')
+			return
+		end
+
 		-- ok so we have this libmain which is the project C contribution
 		-- it's usually got the lua call code
 		-- but I also for this project squeezed in the SDL_main function as well, which is just a trampoline back to luajit world:
@@ -360,6 +359,10 @@ end, function(err)
 end)
 ]=]
 		}
+
+		local funcptr = sdlMainThread.funcptr
+		local funckey = bit.tohex(ffi.cast('uintptr_t', funcptr), bit.lshift(ffi.sizeof'uintptr_t', 1))
+
 		function sdlMainThread:close() end	-- I don't trust lite thread GC with lua-java ...
 		ffi.cdef[[void*(*SDL_main_callback)(void*);]]
 		local main = ffi.load'main'
@@ -368,9 +371,35 @@ end)
 		main.SDL_main_callback = ffi.cast('void*', ffi.cast('uintptr_t', sdlMainThread.funcptr))
 
 
-		local SDLActivity = J.org.libsdl.app.SDLActivity
 		local sdlIntent = Intent(activity, SDLActivity.class)
 		activity:startActivity(sdlIntent)
+
+		-- TODO now that it's created,
+		-- SDLActivity.mSDLThread should be set,
+		-- and mSDLMainFinished should be set once it's done
+		-- so we should set up some kind of monitoring device here that watches for when it is done
+		-- and once its done, report its errors
+
+		sdlIsRunning = true
+		watchSDLThreadLoopHandler = J.android.os.Handler(J.android.os.Looper:getMainLooper())
+		watchSDLThreadRunnable = J.Runnable:_cb(function(this)
+			local SDLActivity = J.org.libsdl.app.SDLActivity
+
+			if sdlIsRunning then	-- did we run something?
+				-- did it stop?
+				if not SDLActivity.mSDLThread
+				or SDLActivity.mSDLMainFinished
+				then
+					-- then print its status to the console
+					print'SDL stopped'
+					print('SDL exit status', sdlMainThread:getExitStatus(funckey))
+					print('SDL err msg', sdlMainThread:getErrMsg(funckey))
+					sdlIsRunning = false
+				else
+					watchSDLThreadLoopHandler:postDelayed(this, 1000)
+				end
+			end
+		end)
 	end
 
 	local prevOnCreate = callbacks.onCreate
@@ -492,6 +521,21 @@ end)
 			end,
 		}
 
+		if savedInstanceState then
+			if savedInstanceState:containsKey'project' then
+				projectRow.edit:setText(savedInstanceState:getString'project')
+			end
+			if savedInstanceState:containsKey'cwd' then
+				cwdRow.edit:setText(savedInstanceState:getString'cwd')
+			end
+			if savedInstanceState:containsKey'file' then
+				fileRow.edit:setText(savedInstanceState:getString'file')
+			end
+			if savedInstanceState:containsKey'args' then
+				launchRow.edit:setText(savedInstanceState:getString'args')
+			end
+		end
+
 		activity:setContentView(sdlLaunchLayout)
 	end
 
@@ -519,21 +563,23 @@ end)
 			local result = tostring(data:getData():getPath())
 			result = result:gsub('^/tree/primary:', '/sdcard/')	-- when picking a folder
 			result = result:gsub('^/document/primary:', '/sdcard/')	-- when picking a file
-			return J:_str(result)
+			return result
 		end
 
 		local requestIntVal = requestCode:intValue()
 		if requestIntVal == pickCwdFolder then
 			if resultCode:intValue() == Activity.RESULT_OK then
-				cwdRow.edit:setText(getDataFilePath())
+				cwdRow.edit:setText(J:_str(getDataFilePath()))
 			end
-		elseif requestIntVal == getNextActivity() then
+		elseif requestIntVal == pickProjectFolder then
 			if resultCode:intValue() == Activity.RESULT_OK then
-				projectRow.edit:setText(getDataFilePath())
+				projectRow.edit:setText(J:_str(getDataFilePath()))
 			end
 		elseif requestIntVal == pickLaunchFile then
 			if resultCode:intValue() == Activity.RESULT_OK then
-				fileRow.edit:setText(getDataFilePath())
+				local fn = getDataFilePath()
+				fileRow.edit:setText(J:_str(fn))
+				cwdRow.edit:setText(J:_str(require 'ext.path'(fn):getdir().path))
 			end
 		end
 	end
@@ -549,6 +595,34 @@ end)
 		--return prevOnBackPressed(activity, ...)
 	end
 	--]]
+
+	local prevOnSaveInstanceState = callbacks.onSaveInstanceState
+	callbacks.onSaveInstanceState = function(activity, outState, ...)
+		outState:putString(J:_str'project', J:_str(tostring(projectRow.edit:getText())))
+		outState:putString(J:_str'cwd', J:_str(tostring(cwdRow.edit:getText())))
+		outState:putString(J:_str'file', J:_str(tostring(fileRow.edit:getText())))
+		outState:putString(J:_str'args', J:_str(tostring(launchRow.edit:getText())))
+		return prevOnSaveInstanceState(activity, outState, ...)
+	end
+
+	local prevOnResume = callbacks.onResume
+	callbacks.onResume = function(activity)
+		prevOnResume(activity)
+		if watchSDLThreadLoopHandler
+		and watchSDLThreadRunnable
+		and sdlIsRunning
+		then
+			watchSDLThreadLoopHandler:post(watchSDLThreadRunnable)
+		end
+	end
+
+	local prevOnPause = callbacks.onPause
+	callbacks.onPause = function(activity)
+		prevOnPause(activity)
+		if watchSDLThreadLoopHandler and watchSDLThreadRunnable then
+			watchSDLThreadLoopHandler:removeCallbacks(watchSDLThreadRunnable)
+		end
+	end
 end
 --]=======]
 
