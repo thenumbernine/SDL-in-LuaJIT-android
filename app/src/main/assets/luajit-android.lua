@@ -81,22 +81,22 @@ do
 	end
 
 	local prevOnResume = callbacks.onResume
-	callbacks.onResume = function(activity)
-		prevOnResume(activity)
+	callbacks.onResume = function(activity, ...)
 		if statsLoopHandler
 		and statsLoopRunnable
 		and isWatchingRAM
 		then
 			statsLoopHandler:post(statsLoopRunnable)
 		end
+		return prevOnResume(activity, ...)
 	end
 
 	local prevOnPause = callbacks.onPause
-	callbacks.onPause = function(activity)
-		prevOnPause(activity)
+	callbacks.onPause = function(activity, ...)
 		if statsLoopHandler and statsLoopRunnable then
 			statsLoopHandler:removeCallbacks(statsLoopRunnable)
 		end
+		return prevOnPause(activity, ...)
 	end
 
 	local menuToggleStats = getNextMenu()
@@ -185,19 +185,19 @@ print"onCreate DONE"
 	end
 
 	local prevOnResume = callbacks.onResume
-	callbacks.onResume = function(activity)
-		prevOnResume(activity)
+	callbacks.onResume = function(activity, ...)
 		if logUpdateLoopHandler and logUpdateLoopRunnable then
 			logUpdateLoopHandler:post(logUpdateLoopRunnable)
 		end
+		return prevOnResume(activity, ...)
 	end
 
 	local prevOnPause = callbacks.onPause
-	callbacks.onPause = function(activity)
-		prevOnPause(activity)
+	callbacks.onPause = function(activity, ...)
 		if logUpdateLoopHandler and logUpdateLoopRunnable then
 			logUpdateLoopHandler:removeCallbacks(logUpdateLoopRunnable)
 		end
+		return prevOnPause(activity, ...)
 	end
 
 	local menuOpenLog = getNextMenu()
@@ -521,16 +521,21 @@ end)
 			end,
 		}
 
+--DEBUG:print('savedInstanceState', savedInstanceState)
 		if savedInstanceState then
+--DEBUG:print("savedInstanceState:containsKey'project'", savedInstanceState:containsKey'project')
 			if savedInstanceState:containsKey'project' then
 				projectRow.edit:setText(savedInstanceState:getString'project')
 			end
+--DEBUG:print("savedInstanceState:containsKey'cwd'", savedInstanceState:containsKey'cwd')
 			if savedInstanceState:containsKey'cwd' then
 				cwdRow.edit:setText(savedInstanceState:getString'cwd')
 			end
+--DEBUG:print("savedInstanceState:containsKey'file'", savedInstanceState:containsKey'file')
 			if savedInstanceState:containsKey'file' then
 				fileRow.edit:setText(savedInstanceState:getString'file')
 			end
+--DEBUG:print("savedInstanceState:containsKey'args'", savedInstanceState:containsKey'args')
 			if savedInstanceState:containsKey'args' then
 				launchRow.edit:setText(savedInstanceState:getString'args')
 			end
@@ -557,8 +562,6 @@ end)
 
 	local prevOnActivityResult = callbacks.onActivityResult
 	callbacks.onActivityResult = function(activity, requestCode, resultCode, data)
-		prevOnActivityResult(activity, requestCode, resultCode, data)
-
 		local function getDataFilePath()
 			local result = tostring(data:getData():getPath())
 			result = result:gsub('^/tree/primary:', '/sdcard/')	-- when picking a folder
@@ -582,6 +585,8 @@ end)
 				cwdRow.edit:setText(J:_str(require 'ext.path'(fn):getdir().path))
 			end
 		end
+
+		return prevOnActivityResult(activity, requestCode, resultCode, data)
 	end
 
 	--[[ TODO this wont work for SDLActivity, only the main UI laucnher's back button
@@ -598,30 +603,39 @@ end)
 
 	local prevOnSaveInstanceState = callbacks.onSaveInstanceState
 	callbacks.onSaveInstanceState = function(activity, outState, ...)
-		outState:putString(J:_str'project', J:_str(tostring(projectRow.edit:getText())))
-		outState:putString(J:_str'cwd', J:_str(tostring(cwdRow.edit:getText())))
-		outState:putString(J:_str'file', J:_str(tostring(fileRow.edit:getText())))
-		outState:putString(J:_str'args', J:_str(tostring(launchRow.edit:getText())))
+--DEBUG:print('onSaveInstanceState')
+		local k, v = J:_str'project', J:_str(tostring(projectRow.edit:getText()))
+--DEBUG:print('putting', k, v)
+		outState:putString(k, v)
+		local k, v = J:_str'cwd', J:_str(tostring(cwdRow.edit:getText()))
+--DEBUG:print('putting', k, v)
+		outState:putString(k, v)
+		local k, v = J:_str'file', J:_str(tostring(fileRow.edit:getText()))
+--DEBUG:print('putting', k, v)
+		outState:putString(k, v)
+		local k, v = J:_str'args', J:_str(tostring(launchRow.edit:getText()))
+--DEBUG:print('putting', k, v)
+		outState:putString(k, v)
 		return prevOnSaveInstanceState(activity, outState, ...)
 	end
 
 	local prevOnResume = callbacks.onResume
-	callbacks.onResume = function(activity)
-		prevOnResume(activity)
+	callbacks.onResume = function(activity, ...)
 		if watchSDLThreadLoopHandler
 		and watchSDLThreadRunnable
 		and sdlIsRunning
 		then
 			watchSDLThreadLoopHandler:post(watchSDLThreadRunnable)
 		end
+		return prevOnResume(activity, ...)
 	end
 
 	local prevOnPause = callbacks.onPause
-	callbacks.onPause = function(activity)
-		prevOnPause(activity)
+	callbacks.onPause = function(activity, ...)
 		if watchSDLThreadLoopHandler and watchSDLThreadRunnable then
 			watchSDLThreadLoopHandler:removeCallbacks(watchSDLThreadRunnable)
 		end
+		return prevOnPause(activity, ...)
 	end
 end
 --]=======]
