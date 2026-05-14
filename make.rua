@@ -1,12 +1,6 @@
 #!/usr/bin/env rua
 
--- TODO this is only necessary for temp-file generation (which will always have bad timestamps)
--- otherwise old fashion timestamps are fine
-local Targets = require 'make.targets'
-local targets = Targets() --{verbose=true}
-
-local exec = |...| assert(os.exec(...))	-- assert or nah?
-local cp = |...| exec('cp', ...)
+dofile'../LuaJIT-lib/config.rua'
 
 -- welp this might not actually work, because it's across git repos, so timestamps will get messed up
 -- maybe I should touch all files the first time around?
@@ -69,28 +63,15 @@ targets:runAll()
 --  and the individual apps just link into it, like the old days before the retards at Google ruined everything, and github copying the same file 1000x over became trendy?
 -- That's what my lua-make project is set up for anyways.  That's the old MSVC style project dir structure after all.
 
-local dirsort = |p|
-	table.wrapfor(p:dir())
-	:mapi(|vk| vk[1])
-	:sort(|a,b| a.path < b.path)	-- is < in Path already?
-
-local latest = |p| p/dirsort(p):last()
-
-home = path(os.home())
-
-androidSdkRoot = home/'Android/Sdk'
-androidNdkHome = latest(androidSdkRoot/'ndk')	-- ANDROID_NDK_HOME ... still the name that is used?
-androidCMakeToolchainFile = (androidNdkHome/'build/cmake/android.toolchain.cmake')
-assert(androidCMakeToolchainFile:exists())
-libArch = 'armeabi-v7a'	-- arch folder in lib/
-ndkCrossPrefix = 'arm-linux-androideabi'
+libDir = path'LuaJIT/lib'/libArch
+libDir:mkdir(true)
 
 -- [[
-libSDL_so = path'LuaJIT/lib'/libArch/'libSDL3.so'
+libSDL_so = libDir/'libSDL3.so'
 if not libSDL_so:exists() then
 	local SDLAbsDir = SDLDir:abs()
 	local sdlBuildDir = path'_SDL_build'/libArch
-	sdlBuildDir :mkdir(true)
+	sdlBuildDir:mkdir(true)
 	-- https://developer.android.com/studio/projects/configure-cmake
 	exec('cd', sdlBuildDir,
 		'&&',
@@ -113,6 +94,8 @@ if not libSDL_so:exists() then
 	)
 end
 --]]
+
+cp(libcppshared_so, libDir)
 
 -- TODO better would be to include make.rua's rules ... and have some kind of make targets launcher so it's all basically like gnu-make but with proper variables and proper escaping.
 -- then you could do this to add extra .so's to the apk rule:
