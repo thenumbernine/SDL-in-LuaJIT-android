@@ -305,8 +305,9 @@ xpcall(function()
 	exec('mkdir -p '..libDir)
 	local function setuplib(projectName, libLoadName)
 		local libFileName = 'lib'..libLoadName..'.so'
+		assert(ffi.os == 'Android', "expected ffi.os == Android, got "..tostring(ffi.os))
 		exec(('cp %q %q'):format(
-			projectDir..'/'..projectName..'/bin/Android/arm/'..libFileName,
+			projectDir..'/'..projectName..'/bin/'..ffi.os..'/'..ffi.arch..'/'..libFileName,
 			libDir..'/')
 		)
 		require 'ffi.load'[libLoadName] = libDir..'/'..libFileName
