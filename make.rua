@@ -88,14 +88,13 @@ if not libSDL_so:exists() then
 	)
 	exec('cp', sdlBuildDir/'libSDL3.so', libSDL_so)
 	-- and for c++_shared ...
-	exec('cp',
-		androidNdkHome/'toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/'/ndkCrossPrefix/'libc++_shared.so',
-		(libSDL_so:getdir())
-	)
+	--exec('cp',
+	--	androidNdkHome/'toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/'/ndkCrossPrefix/'libc++_shared.so',
+	--	(libSDL_so:getdir())
+	--)
+	cp(libcppshared_so, libDir)
 end
 --]]
-
-cp(libcppshared_so, libDir)
 
 -- TODO better would be to include make.rua's rules ... and have some kind of make targets launcher so it's all basically like gnu-make but with proper variables and proper escaping.
 -- then you could do this to add extra .so's to the apk rule:
